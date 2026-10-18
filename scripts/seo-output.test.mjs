@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { parseHTML } from 'linkedom';
 import { seoPages, pageSeo, markdownPath, SITE_ORIGIN } from '../shared/site-seo.ts';
 import { onRequest } from '../functions/docs.ts';
+import { galleryImageBaseUrl } from '../src/gallery/items.ts';
 
 const read = path => readFileSync(`dist/${path}`, 'utf8');
 const publicPages = Object.entries(seoPages).filter(([, page]) => !page.noindex);
@@ -181,9 +182,9 @@ test('the header has one 反馈 entry for the two feedback forms, which switch b
   }
 });
 
-test('the header lists 首页 下载 社区 文档 反馈 关于, and 开源代码 is a GitHub button there and the last item of the menu panel', () => {
-  for (const [prefix, labels, code] of [['', ['首页', '下载', '社区', '文档', '反馈', '关于'], '开源代码'], ['/zh-TW', ['首頁', '下載', '社群', '文件', '回報', '關於'], '開源程式碼']]) {
-    for (const base of ['/', '/code/', '/download/']) {
+test('the header includes 水杉娘, and 开源代码 is a GitHub button there and the last item of the menu panel', () => {
+  for (const [prefix, labels, code] of [['', ['首页', '下载', '社区', '水杉娘', '文档', '反馈', '关于'], '开源代码'], ['/zh-TW', ['首頁', '下載', '社群', '水杉娘', '文件', '回報', '關於'], '開源程式碼']]) {
+    for (const base of ['/', '/code/', '/download/', '/gallery/']) {
       const doc = document(`${prefix}${base}`);
       assert.deepEqual([...doc.querySelectorAll('.nav-list a')].map(link => link.textContent.trim()), labels, `${prefix}${base}`);
       assert.deepEqual([...doc.querySelectorAll('#nav-menu a')].map(link => link.textContent.trim()), [...labels, code], `${prefix}${base}`);
@@ -197,6 +198,33 @@ test('the header lists 首页 下载 社区 文档 反馈 关于, and 开源代�
       assert.equal(button.getAttribute('aria-current'), base === '/code/' ? 'page' : null, `${prefix}${base}`);
       assert.ok(doc.querySelector(`.site-footer a[href="${prefix}/code/"]`), `${prefix}${base}: the footer still links 开源代码`);
     }
+  }
+});
+
+test('the gallery exposes R2 thumbnails and full previews without JavaScript in both locales', () => {
+  assert.match(galleryImageBaseUrl, /^https:\/\/media\.msime\.app\/gallery\/[a-f0-9]{16}\/illustrations$/);
+  assert.ok(!existsSync('dist/gallery/illustrations'), 'gallery images are served by R2, outside the Pages bundle');
+  for (const prefix of ['', '/zh-TW']) {
+    const doc = document(`${prefix}/gallery/`);
+    const cards = [...doc.querySelectorAll('#collection figure')];
+    assert.equal(cards.length, 134);
+    assert.equal(new Set(cards.map(card => card.querySelector('a').getAttribute('href'))).size, cards.length);
+    for (const card of cards) {
+      const image = card.querySelector('img');
+      const preview = card.querySelector('a').getAttribute('href');
+      assert.equal(image.getAttribute('loading'), 'lazy');
+      assert.ok(image.getAttribute('alt').includes('水杉娘'));
+      assert.ok(card.querySelector('figcaption').textContent.trim());
+      assert.ok(preview.startsWith(`${galleryImageBaseUrl}/`));
+      assert.ok(preview.endsWith('-1536w.webp'));
+      assert.equal(image.getAttribute('src'), preview.replace(/-1536w\.webp$/, '-480w.webp'));
+    }
+    assert.equal(doc.querySelectorAll('.page-hero img').length, 4);
+    assert.doesNotMatch(doc.querySelector('#root').textContent, /幼年/);
+    for (const menu of ['.nav-list', '#nav-menu']) {
+      assert.equal(doc.querySelector(`${menu} a[href="${prefix}/gallery/"]`).getAttribute('aria-current'), 'page');
+    }
+    assert.ok(doc.querySelector(`.site-footer a[href="${prefix}/gallery/"]`));
   }
 });
 
